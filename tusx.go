@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmapst/tusx/types"
 )
@@ -373,7 +374,18 @@ func (tusx *STusx) PatchFile(w http.ResponseWriter, r *http.Request) {
 
 		info.Size = uploadLength
 	}
-	info.Offset, err = upload.WriteChunk(r.Context(), offset, r.Body)
+	maxSize := info.Size - offset
+	body := newBodyReader(w, r, maxSize)
+	body.onReadDone = func() {
+		if err = body.resC.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
+			tusx.logger.WarnContext(r.Context(), "NetworkTimeoutError", "error", err)
+		}
+		if err = body.resC.SetWriteDeadline(time.Now().Add(120 * time.Second)); err != nil {
+			tusx.logger.WarnContext(r.Context(), "NetworkTimeoutError", "error", err)
+		}
+	}
+	tusx.sendProgressMessages(r, upload, info, body)
+	info.Offset, err = upload.WriteChunk(r.Context(), offset, body)
 	if err != nil {
 		tusx.logger.Error("failed to write chunk", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -756,4 +768,36 @@ func (tusx *STusx) filterContentType(info types.FileInfo) (contentType string, c
 	}
 
 	return contentType, contentDisposition
+}
+
+func (tusx *STusx) sendProgressMessages(r *http.Request, upload types.IUpload, info types.FileInfo, body *bodyReader) {
+	hook := types.HookEvent{
+		Context:     r.Context(),
+		HTTPRequest: r,
+		Upload:      info,
+	}
+
+	previousOffset := int64(0)
+	originalOffset := hook.Upload.Offset
+
+	emitProgress := func() {
+		hook.Upload.Offset = originalOffset + body.bytesRead()
+		if hook.Upload.Offset != previousOffset {
+			_ = upload.UpdateOffset(r.Context(), hook.Upload.Offset)
+			tusx.events.PublishEvent("upload.progress", hook)
+			previousOffset = hook.Upload.Offset
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case <-r.Context().Done():
+				emitProgress()
+				return
+			case <-time.After(time.Second):
+				emitProgress()
+			}
+		}
+	}()
 }
