@@ -181,10 +181,8 @@
             onProgress: function(bytesUploaded, bytesTotal) {
                 const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2)
                 progressBar.style.width = `${percentage}%`
-                console.log(bytesUploaded, bytesTotal, `${percentage}%`)
             },
             onSuccess: function () {
-                console.log(upload.url)
                 const anchor = document.createElement('a')
                 anchor.textContent = `下载 ${upload.file.name} (${upload.file.size} 字节)`
                 anchor.href = upload.url

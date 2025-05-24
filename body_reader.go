@@ -62,14 +62,14 @@ func (r *bodyReader) Read(b []byte) (int, error) {
 		// http.ErrBodyReadAfterClose means that the bodyReader closed the request body because the upload is
 		// is stopped or the server shuts down. In this case, the closeWithError method already
 		// set `r.err` and thus we don't overerwrite it here but just return.
-		if err == http.ErrBodyReadAfterClose {
+		if errors.Is(err, http.ErrBodyReadAfterClose) {
 			return n, io.EOF
 		}
 
 		// All of the following errors can be understood as the input stream ending too soon:
 		// - io.ErrClosedPipe is returned in the package's unit test with io.Pipe()
 		// - io.UnexpectedEOF means that the client aborted the request.
-		if err == io.ErrClosedPipe || err == io.ErrUnexpectedEOF {
+		if errors.Is(err, io.ErrClosedPipe) || errors.Is(err, io.ErrUnexpectedEOF) {
 			err = errors.New("EOF")
 		}
 

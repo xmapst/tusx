@@ -18,6 +18,7 @@ import (
 	"github.com/pires/go-proxyproto"
 
 	"github.com/xmapst/tusx"
+	memorylocker "github.com/xmapst/tusx/locker/memory"
 	filestore "github.com/xmapst/tusx/storage/file"
 	"github.com/xmapst/tusx/types"
 )
@@ -48,15 +49,10 @@ func main() {
 	flag.Parse()
 
 	serverCtx, cancelServerCtx := context.WithCancelCause(context.Background())
-	//_ = os.MkdirAll(uploadDir, os.FileMode(0754))
-	//slog.Info("starting...")
-	//locker, err := redislocker.New(redisURL)
-	//if err != nil {
-	//	slog.Error("failed to create redis locker", "err", err)
-	//	os.Exit(255)
-	//}
-	//
-	store, err := filestore.New(filepath.Join(os.TempDir(), ".tusd"))
+	_ = os.MkdirAll(uploadDir, os.FileMode(0754))
+	slog.Info("starting...")
+	locker := memorylocker.New()
+	store, err := filestore.New(uploadDir, locker)
 	if err != nil {
 		slog.Error("failed to create file store", "err", err)
 		os.Exit(255)
@@ -110,12 +106,12 @@ func main() {
 		os.Exit(255)
 	}
 	tusxHandler.SubscribeCompleteUploads(serverCtx, func(event types.HookEvent) error {
-		slog.Info("upload completed",
-			"id", event.Upload.ID,
-			"size", event.Upload.Size,
-			"offset", event.Upload.Offset,
-			"meta", event.Upload.MetaData,
-		)
+		//slog.Info("upload completed",
+		//	"id", event.Upload.ID,
+		//	"size", event.Upload.Size,
+		//	"offset", event.Upload.Offset,
+		//	"meta", event.Upload.MetaData,
+		//)
 		return nil
 	})
 
